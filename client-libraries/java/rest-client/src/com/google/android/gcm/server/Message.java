@@ -64,6 +64,7 @@ public final class Message implements Serializable {
   private final Map<String, String> data;
   private final Boolean dryRun;
   private final String restrictedPackageName;
+  private final Notification notification;
 
   public static final class Builder {
 
@@ -75,6 +76,7 @@ public final class Message implements Serializable {
     private Integer timeToLive;
     private Boolean dryRun;
     private String restrictedPackageName;
+    private Notification notification;
 
     public Builder() {
       this.data = new LinkedHashMap<String, String>();
@@ -128,6 +130,14 @@ public final class Message implements Serializable {
       return this;
     }
 
+    /**
+     * Sets the notification property.
+     */
+    public Builder notification(Notification value) {
+      notification = value;
+      return this;
+    }
+
     public Message build() {
       return new Message(this);
     }
@@ -141,6 +151,7 @@ public final class Message implements Serializable {
     timeToLive = builder.timeToLive;
     dryRun = builder.dryRun;
     restrictedPackageName = builder.restrictedPackageName;
+    notification = builder.notification;
   }
 
   /**
@@ -185,6 +196,13 @@ public final class Message implements Serializable {
     return data;
   }
 
+  /**
+   * Gets notification payload, which is immutable.
+   */
+  public Notification getNotification() {
+    return notification;
+  }
+
   @Override
   public String toString() {
     StringBuilder builder = new StringBuilder("Message(");
@@ -202,6 +220,9 @@ public final class Message implements Serializable {
     }
     if (restrictedPackageName != null) {
       builder.append("restrictedPackageName=").append(restrictedPackageName).append(", ");
+    }
+    if (notification != null) {
+      builder.append("notification: ").append(notification).append(", ");
     }
     if (!data.isEmpty()) {
       builder.append("data: {");

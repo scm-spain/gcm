@@ -36,6 +36,7 @@ public class MessageTest {
     assertNull(message.isDelayWhileIdle());
     assertTrue(message.getData().isEmpty());
     assertNull(message.getTimeToLive());
+    assertNull(message.getNotification());
     String toString = message.toString();
     assertFalse(toString.contains("collapseKey"));
     assertFalse(toString.contains("timeToLive"));
@@ -54,6 +55,7 @@ public class MessageTest {
         .addData("k1", "old value")
         .addData("k1", "v1")
         .addData("k2", "v2")
+        .notification(new Notification.Builder("my").build())
         .build();
     assertEquals("108", message.getCollapseKey());
     assertTrue(message.isDelayWhileIdle());
@@ -72,6 +74,7 @@ public class MessageTest {
     assertTrue(toString.contains("k2=v2"));
     assertTrue(toString.contains("dryRun=true"));
     assertTrue(toString.contains("restrictedPackageName=package.name"));
+    assertTrue(toString.contains("notification: "));
   }
 
   @Test(expected = UnsupportedOperationException.class)

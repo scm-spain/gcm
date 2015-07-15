@@ -15,23 +15,6 @@
  */
 package com.google.android.gcm.server;
 
-import static com.google.android.gcm.server.Constants.GCM_SEND_ENDPOINT;
-import static com.google.android.gcm.server.Constants.JSON_CANONICAL_IDS;
-import static com.google.android.gcm.server.Constants.JSON_CANONICAL_REG_ID;
-import static com.google.android.gcm.server.Constants.JSON_ERROR;
-import static com.google.android.gcm.server.Constants.JSON_FAILURE;
-import static com.google.android.gcm.server.Constants.JSON_MESSAGE_ID;
-import static com.google.android.gcm.server.Constants.JSON_MULTICAST_ID;
-import static com.google.android.gcm.server.Constants.JSON_PAYLOAD;
-import static com.google.android.gcm.server.Constants.JSON_REGISTRATION_IDS;
-import static com.google.android.gcm.server.Constants.JSON_RESULTS;
-import static com.google.android.gcm.server.Constants.JSON_SUCCESS;
-import static com.google.android.gcm.server.Constants.PARAM_COLLAPSE_KEY;
-import static com.google.android.gcm.server.Constants.PARAM_DELAY_WHILE_IDLE;
-import static com.google.android.gcm.server.Constants.PARAM_DRY_RUN;
-import static com.google.android.gcm.server.Constants.PARAM_RESTRICTED_PACKAGE_NAME;
-import static com.google.android.gcm.server.Constants.PARAM_TIME_TO_LIVE;
-
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.JSONParser;
@@ -53,6 +36,8 @@ import java.util.Random;
 import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static com.google.android.gcm.server.Constants.*;
 
 /**
  * Helper class to send messages to the GCM service using an API Key.
@@ -301,13 +286,29 @@ public class Sender {
     setJsonField(jsonRequest, PARAM_TIME_TO_LIVE, message.getTimeToLive());
     setJsonField(jsonRequest, PARAM_COLLAPSE_KEY, message.getCollapseKey());
     setJsonField(jsonRequest, PARAM_RESTRICTED_PACKAGE_NAME, message.getRestrictedPackageName());
-    setJsonField(jsonRequest, PARAM_DELAY_WHILE_IDLE,
-        message.isDelayWhileIdle());
+    setJsonField(jsonRequest, PARAM_DELAY_WHILE_IDLE, message.isDelayWhileIdle());
     setJsonField(jsonRequest, PARAM_DRY_RUN, message.isDryRun());
     jsonRequest.put(JSON_REGISTRATION_IDS, registrationIds);
     Map<String, String> payload = message.getData();
     if (!payload.isEmpty()) {
       jsonRequest.put(JSON_PAYLOAD, payload);
+    }
+    if (message.getNotification() != null) {
+      Notification notification = message.getNotification();
+      Map<Object, Object> nMap = new HashMap<Object, Object>();
+      setJsonField(nMap, JSON_NOTIFICATION_BADGE, notification.getBadge());
+      setJsonField(nMap, JSON_NOTIFICATION_BODY, notification.getBody());
+      setJsonField(nMap, JSON_NOTIFICATION_BODY_LOC_ARGS, notification.getBodyLocArgs());
+      setJsonField(nMap, JSON_NOTIFICATION_BODY_LOC_KEY, notification.getBodyLocKey());
+      setJsonField(nMap, JSON_NOTIFICATION_CLICK_ACTION, notification.getClickAction());
+      setJsonField(nMap, JSON_NOTIFICATION_COLOR, notification.getColor());
+      setJsonField(nMap, JSON_NOTIFICATION_ICON, notification.getIcon());
+      setJsonField(nMap, JSON_NOTIFICATION_SOUND, notification.getSound());
+      setJsonField(nMap, JSON_NOTIFICATION_TAG, notification.getTag());
+      setJsonField(nMap, JSON_NOTIFICATION_TITLE, notification.getTitle());
+      setJsonField(nMap, JSON_NOTIFICATION_TITLE_LOC_ARGS, notification.getTitleLocArgs());
+      setJsonField(nMap, JSON_NOTIFICATION_TITLE_LOC_KEY, notification.getTitleLocKey());
+      jsonRequest.put(JSON_NOTIFICATION, nMap);
     }
     String requestBody = JSONValue.toJSONString(jsonRequest);
     logger.finest("JSON request: " + requestBody);
