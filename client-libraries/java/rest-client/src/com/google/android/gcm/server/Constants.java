@@ -27,11 +27,6 @@ public final class Constants {
       "https://android.googleapis.com/gcm/send";
 
   /**
-   * HTTP parameter for registration id.
-   */
-  public static final String PARAM_REGISTRATION_ID = "registration_id";
-
-  /**
    * HTTP parameter for collapse key.
    */
   public static final String PARAM_COLLAPSE_KEY = "collapse_key";
@@ -51,11 +46,6 @@ public final class Constants {
    * against the package name used to generate the registration id.
    */
   public static final String PARAM_RESTRICTED_PACKAGE_NAME = "restricted_package_name";
-
-  /**
-   * Prefix to HTTP parameter used to pass key-values in the message payload.
-   */
-  public static final String PARAM_PAYLOAD_PREFIX = "data.";
 
   /**
    * Prefix to HTTP parameter used to set the message time-to-live.
@@ -131,20 +121,10 @@ public final class Constants {
   public static final String ERROR_INVALID_TTL= "InvalidTtl";
 
   /**
-   * Token returned by GCM when a message was successfully sent.
-   */
-  public static final String TOKEN_MESSAGE_ID = "id";
-
-  /**
    * Token returned by GCM when the requested registration id has a canonical
    * value.
    */
-  public static final String TOKEN_CANONICAL_REG_ID = "registration_id";
-
-  /**
-   * Token returned by GCM when there was an error sending a message.
-   */
-  public static final String TOKEN_ERROR = "Error";
+  public static final String JSON_CANONICAL_REG_ID = "registration_id";
 
   /**
    * JSON-only field representing the registration ids.

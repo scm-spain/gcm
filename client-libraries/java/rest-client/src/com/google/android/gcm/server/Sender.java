@@ -17,6 +17,7 @@ package com.google.android.gcm.server;
 
 import static com.google.android.gcm.server.Constants.GCM_SEND_ENDPOINT;
 import static com.google.android.gcm.server.Constants.JSON_CANONICAL_IDS;
+import static com.google.android.gcm.server.Constants.JSON_CANONICAL_REG_ID;
 import static com.google.android.gcm.server.Constants.JSON_ERROR;
 import static com.google.android.gcm.server.Constants.JSON_FAILURE;
 import static com.google.android.gcm.server.Constants.JSON_MESSAGE_ID;
@@ -28,15 +29,8 @@ import static com.google.android.gcm.server.Constants.JSON_SUCCESS;
 import static com.google.android.gcm.server.Constants.PARAM_COLLAPSE_KEY;
 import static com.google.android.gcm.server.Constants.PARAM_DELAY_WHILE_IDLE;
 import static com.google.android.gcm.server.Constants.PARAM_DRY_RUN;
-import static com.google.android.gcm.server.Constants.PARAM_PAYLOAD_PREFIX;
-import static com.google.android.gcm.server.Constants.PARAM_REGISTRATION_ID;
 import static com.google.android.gcm.server.Constants.PARAM_RESTRICTED_PACKAGE_NAME;
 import static com.google.android.gcm.server.Constants.PARAM_TIME_TO_LIVE;
-import static com.google.android.gcm.server.Constants.TOKEN_CANONICAL_REG_ID;
-import static com.google.android.gcm.server.Constants.TOKEN_ERROR;
-import static com.google.android.gcm.server.Constants.TOKEN_MESSAGE_ID;
-
-import com.google.android.gcm.server.Result.Builder;
 
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -51,13 +45,12 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -65,8 +58,6 @@ import java.util.logging.Logger;
  * Helper class to send messages to the GCM service using an API Key.
  */
 public class Sender {
-
-  protected static final String UTF8 = "UTF-8";
 
   /**
    * Initial delay before first retry, without jitter.
@@ -113,7 +104,7 @@ public class Sender {
   public Result send(Message message, String registrationId, int retries)
       throws IOException {
     int attempt = 0;
-    Result result = null;
+    Result result;
     int backoff = BACKOFF_INITIAL_DELAY;
     boolean tryAgain;
     do {
@@ -146,110 +137,24 @@ public class Sender {
    * @return result of the post, or {@literal null} if the GCM service was
    *         unavailable or any network exception caused the request to fail.
    *
-   * @throws InvalidRequestException if GCM didn't returned a 200 or 5xx status.
+   * @throws InvalidRequestException if GCM didn't returned a 200 status.
    * @throws IllegalArgumentException if registrationId is {@literal null}.
    */
   public Result sendNoRetry(Message message, String registrationId)
       throws IOException {
-    StringBuilder body = newBody(PARAM_REGISTRATION_ID, registrationId);
-    Boolean delayWhileIdle = message.isDelayWhileIdle();
-    if (delayWhileIdle != null) {
-      addParameter(body, PARAM_DELAY_WHILE_IDLE, delayWhileIdle ? "1" : "0");
-    }
-    Boolean dryRun = message.isDryRun();
-    if (dryRun != null) {
-      addParameter(body, PARAM_DRY_RUN, dryRun ? "1" : "0");
-    }
-    String collapseKey = message.getCollapseKey();
-    if (collapseKey != null) {
-      addParameter(body, PARAM_COLLAPSE_KEY, collapseKey);
-    }
-    String restrictedPackageName = message.getRestrictedPackageName();
-    if (restrictedPackageName != null) {
-      addParameter(body, PARAM_RESTRICTED_PACKAGE_NAME, restrictedPackageName);
-    }
-    Integer timeToLive = message.getTimeToLive();
-    if (timeToLive != null) {
-      addParameter(body, PARAM_TIME_TO_LIVE, Integer.toString(timeToLive));
-    }
-    for (Entry<String, String> entry : message.getData().entrySet()) {
-      String key = entry.getKey();
-      String value = entry.getValue();
-      if (key == null || value == null) {
-        logger.warning("Ignoring payload entry thas has null: " + entry);
-      } else {
-        key = PARAM_PAYLOAD_PREFIX + key;
-        addParameter(body, key, URLEncoder.encode(value, UTF8));
-      }
-    }
-    String requestBody = body.toString();
-    logger.finest("Request body: " + requestBody);
-    HttpURLConnection conn;
-    int status;
-    try {
-      conn = post(GCM_SEND_ENDPOINT, requestBody);
-      status = conn.getResponseCode();
-    } catch (IOException e) {
-      logger.log(Level.FINE, "IOException posting to GCM", e);
+    nonNull(registrationId);
+    List<String> registrationIds = Collections.singletonList(registrationId);
+    MulticastResult multicastResult = sendNoRetry(message, registrationIds);
+    if (multicastResult == null) {
       return null;
     }
-    if (status / 100 == 5) {
-      logger.fine("GCM service is unavailable (status " + status + ")");
+    List<Result> results = multicastResult.getResults();
+    if (results.size() != 1) {
+      logger.log(Level.WARNING, "Found " + results.size() +
+          " results in single multicast request, expected one");
       return null;
     }
-    String responseBody;
-    if (status != 200) {
-      try {
-        responseBody = getAndClose(conn.getErrorStream());
-        logger.finest("Plain post error response: " + responseBody);
-      } catch (IOException e) {
-        // ignore the exception since it will thrown an InvalidRequestException
-        // anyways
-        responseBody = "N/A";
-        logger.log(Level.FINE, "Exception reading response: ", e);
-      }
-      throw new InvalidRequestException(status, responseBody);
-    } else {
-      try {
-        responseBody = getAndClose(conn.getInputStream());
-      } catch (IOException e) {
-        logger.log(Level.WARNING, "Exception reading response: ", e);
-        // return null so it can retry
-        return null;
-      }
-    }
-    String[] lines = responseBody.split("\n");
-    if (lines.length == 0 || lines[0].equals("")) {
-      throw new IOException("Received empty response from GCM service.");
-    }
-    String firstLine = lines[0];
-    String[] responseParts = split(firstLine);
-    String token = responseParts[0];
-    String value = responseParts[1];
-    if (token.equals(TOKEN_MESSAGE_ID)) {
-      Builder builder = new Result.Builder().messageId(value);
-      // check for canonical registration id
-      if (lines.length > 1) {
-        String secondLine = lines[1];
-        responseParts = split(secondLine);
-        token = responseParts[0];
-        value = responseParts[1];
-        if (token.equals(TOKEN_CANONICAL_REG_ID)) {
-          builder.canonicalRegistrationId(value);
-        } else {
-          logger.warning("Invalid response from GCM: " + responseBody);
-        }
-      }
-      Result result = builder.build();
-      if (logger.isLoggable(Level.FINE)) {
-        logger.fine("Message created succesfully (" + result + ")");
-      }
-      return result;
-    } else if (token.equals(TOKEN_ERROR)) {
-      return new Result.Builder().errorCode(value).build();
-    } else {
-      throw new IOException("Invalid response from GCM: " + responseBody);
-    }
+    return results.get(0);
   }
 
   /**
@@ -452,7 +357,7 @@ public class Sender {
         for (Map<String, Object> jsonResult : results) {
           String messageId = (String) jsonResult.get(JSON_MESSAGE_ID);
           String canonicalRegId =
-              (String) jsonResult.get(TOKEN_CANONICAL_REG_ID);
+              (String) jsonResult.get(JSON_CANONICAL_REG_ID);
           String error = (String) jsonResult.get(JSON_ERROR);
           Result result = new Result.Builder()
               .messageId(messageId)
@@ -462,8 +367,7 @@ public class Sender {
           builder.addResult(result);
         }
       }
-      MulticastResult multicastResult = builder.build();
-      return multicastResult;
+      return builder.build();
     } catch (ParseException e) {
       throw newIoException(responseBody, e);
     } catch (CustomParserException e) {
@@ -518,24 +422,6 @@ public class Sender {
     }
   }
 
-  private String[] split(String line) throws IOException {
-    String[] split = line.split("=", 2);
-    if (split.length != 2) {
-      throw new IOException("Received invalid response line from GCM: " + line);
-    }
-    return split;
-  }
-
-  /**
-   * Make an HTTP post to a given URL.
-   *
-   * @return HTTP response.
-   */
-  protected HttpURLConnection post(String url, String body)
-      throws IOException {
-    return post(url, "application/x-www-form-urlencoded;charset=UTF-8", body);
-  }
-
   /**
    * Makes an HTTP POST request to a given endpoint.
    *
@@ -553,7 +439,7 @@ public class Sender {
    */
   protected HttpURLConnection post(String url, String contentType, String body)
       throws IOException {
-    if (url == null || body == null) {
+    if (url == null || contentType == null || body == null) {
       throw new IllegalArgumentException("arguments cannot be null");
     }
     if (!url.startsWith("https://")) {
@@ -579,45 +465,10 @@ public class Sender {
   }
 
   /**
-   * Creates a map with just one key-value pair.
-   */
-  protected static final Map<String, String> newKeyValues(String key,
-      String value) {
-    Map<String, String> keyValues = new HashMap<String, String>(1);
-    keyValues.put(nonNull(key), nonNull(value));
-    return keyValues;
-  }
-
-  /**
-   * Creates a {@link StringBuilder} to be used as the body of an HTTP POST.
-   *
-   * @param name initial parameter for the POST.
-   * @param value initial value for that parameter.
-   * @return StringBuilder to be used an HTTP POST body.
-   */
-  protected static StringBuilder newBody(String name, String value) {
-    return new StringBuilder(nonNull(name)).append('=').append(nonNull(value));
-  }
-
-  /**
-   * Adds a new parameter to the HTTP POST body.
-   *
-   * @param body HTTP POST body.
-   * @param name parameter's name.
-   * @param value parameter's value.
-   */
-  protected static void addParameter(StringBuilder body, String name,
-      String value) {
-    nonNull(body).append('&')
-        .append(nonNull(name)).append('=').append(nonNull(value));
-  }
-
-  /**
    * Gets an {@link HttpURLConnection} given an URL.
    */
   protected HttpURLConnection getConnection(String url) throws IOException {
-    HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-    return conn;
+    return (HttpURLConnection) new URL(url).openConnection();
   }
 
   /**

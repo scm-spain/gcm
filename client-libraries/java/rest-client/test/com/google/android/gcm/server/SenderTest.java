@@ -49,7 +49,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -174,24 +173,42 @@ public class SenderTest {
 
   @Test
   public void testSendNoRetry_ok() throws Exception {
-    setResponseExpectations(200, "id=4815162342");
+    String json = replaceQuotes("\n"
+            + "{"
+            + "  'multicast_id': 108,"
+            + "  'success': 1,"
+            + "  'failure': 0,"
+            + "  'canonical_ids': 0,"
+            + "  'results': ["
+            + "    {'message_id': '4815162342'}, "
+            + "  ]"
+            + "}");
+    setResponseExpectations(200, json);
     Result result = sender.sendNoRetry(message, regId);
     assertNotNull(result);
     assertEquals("4815162342", result.getMessageId());
     assertNull(result.getCanonicalRegistrationId());
     assertNull(result.getErrorCodeName());
-    assertRequestBody();
   }
 
   @Test
   public void testSendNoRetry_ok_canonical() throws Exception {
-    setResponseExpectations(200, "id=4815162342\nregistration_id=108");
+    String json = replaceQuotes("\n"
+            + "{"
+            + "  'multicast_id': 108,"
+            + "  'success': 1,"
+            + "  'failure': 0,"
+            + "  'canonical_ids': 1,"
+            + "  'results': ["
+            + "    {'message_id': '23', 'registration_id': '42'}"
+            + "  ]"
+            + "}");
+    setResponseExpectations(200, json);
     Result result = sender.sendNoRetry(message, regId);
     assertNotNull(result);
-    assertEquals("4815162342", result.getMessageId());
-    assertEquals("108", result.getCanonicalRegistrationId());
+    assertEquals("23", result.getMessageId());
+    assertEquals("42", result.getCanonicalRegistrationId());
     assertNull(result.getErrorCodeName());
-    assertRequestBody();
   }
 
   @Test
@@ -203,7 +220,6 @@ public class SenderTest {
     } catch (InvalidRequestException e) {
       assertEquals(401, e.getHttpStatusCode());
     }
-    assertRequestBody();
   }
 
   @Test
@@ -216,50 +232,83 @@ public class SenderTest {
       assertEquals(401, e.getHttpStatusCode());
       assertEquals("", e.getDescription());
     }
-    assertRequestBody();
   }
 
   @Test
   public void testSendNoRetry_error() throws Exception {
-    setResponseExpectations(200, "Error=D'OH!");
+    String json = replaceQuotes("\n"
+            + "{"
+            + "  'multicast_id': 108,"
+            + "  'success': 0,"
+            + "  'failure': 1,"
+            + "  'canonical_ids': 0,"
+            + "  'results': ["
+            + "    {'error': 'DOH!'} "
+            + "  ]"
+            + "}");
+    setResponseExpectations(200, json);
     Result result = sender.sendNoRetry(message, regId);
     assertNull(result.getMessageId());
     assertNull(result.getCanonicalRegistrationId());
-    assertEquals("D'OH!", result.getErrorCodeName());
-    assertRequestBody();
+      assertEquals("DOH!", result.getErrorCodeName());
+  }
+
+    @Test
+    public void testSendNoRetry_resultsCount() throws Exception {
+        String json = replaceQuotes("\n"
+                + "{"
+                + "  'multicast_id': 108,"
+                + "  'success': 2,"
+                + "  'failure': 0,"
+                + "  'canonical_ids': 0,"
+                + "  'results': ["
+            + "    {'message_id': '4815162342'}, "
+                + "    {'message_id': '4815162343'}, "
+            + "  ]"
+            + "}");
+    setResponseExpectations(200, json);
+    Result result = sender.sendNoRetry(message, regId);
+    assertNull(result);
   }
 
   @Test
   public void testSendNoRetry_serviceUnavailable() throws Exception {
     setResponseExpectations(503, "");
-    Result result = sender.sendNoRetry(message, regId);
-    assertNull(result);
-    assertRequestBody();
+    try {
+      sender.sendNoRetry(message, regId);
+      fail("Should have thrown InvalidRequestException");
+    } catch (InvalidRequestException e) {
+      assertEquals(503, e.getHttpStatusCode());
+      assertEquals("", e.getDescription());
+    }
   }
 
   @Test
   public void testSendNoRetry_internalServerError() throws Exception {
     setResponseExpectations(500, "");
-    Result result = sender.sendNoRetry(message, regId);
-    assertNull(result);
-    assertRequestBody();
+    try {
+      sender.sendNoRetry(message, regId);
+      fail("Should have thrown InvalidRequestException");
+    } catch (InvalidRequestException e) {
+      assertEquals(500, e.getHttpStatusCode());
+      assertEquals("", e.getDescription());
+    }
   }
 
   @Test
   public void testSendNoRetry_ioException_post() throws Exception {
-    when(mockedConn.getOutputStream()).thenThrow(new IOException());
+      when(mockedConn.getOutputStream()).thenThrow(new IOException());
     doReturn(mockedConn).when(sender)
         .getConnection(Constants.GCM_SEND_ENDPOINT);
     Result result = sender.sendNoRetry(message, regId);
     assertNull(result);
-    assertRequestBody();
   }
 
   @Test
   public void testSendNoRetry_ioException_errorStream() throws Exception {
     when(mockedConn.getResponseCode()).thenReturn(42);
     when(mockedConn.getOutputStream()).thenReturn(outputStream);
-    when(mockedConn.getErrorStream()).thenReturn(exceptionalStream);
+      when(mockedConn.getErrorStream()).thenReturn(exceptionalStream);
     doReturn(mockedConn).when(sender)
         .getConnection(Constants.GCM_SEND_ENDPOINT);
     try {
@@ -267,19 +316,17 @@ public class SenderTest {
     } catch (InvalidRequestException e) {
       assertEquals(42, e.getHttpStatusCode());
     }
-    assertRequestBody();
   }
 
   @Test
   public void testSendNoRetry_ioException_inputStream() throws Exception {
     when(mockedConn.getResponseCode()).thenReturn(200);
     when(mockedConn.getOutputStream()).thenReturn(outputStream);
-    when(mockedConn.getInputStream()).thenReturn(exceptionalStream);
+      when(mockedConn.getInputStream()).thenReturn(exceptionalStream);
     doReturn(mockedConn).when(sender)
         .getConnection(Constants.GCM_SEND_ENDPOINT);
     Result result = sender.sendNoRetry(message, regId);
     assertNull(result);
-    assertRequestBody();
   }
 
   @Test(expected = IOException.class)
@@ -288,32 +335,24 @@ public class SenderTest {
     sender.sendNoRetry(message, regId);
   }
 
-  @Test(expected = IOException.class)
-  public void testSendNoRetry_noToken() throws Exception {
-    setResponseExpectations(200, "no token");
-    sender.sendNoRetry(message, regId);
-  }
-
-  @Test(expected = IOException.class)
-  public void testSendNoRetry_invalidToken() throws Exception {
-    setResponseExpectations(200, "bad=token");
-    sender.sendNoRetry(message, regId);
-  }
-
-  @Test(expected = IOException.class)
-  public void testSendNoRetry_emptyToken() throws Exception {
-    setResponseExpectations(200, "token=");
-    sender.sendNoRetry(message, regId);
-  }
-
   @Test
   public void testSendNoRetry_invalidHttpStatusCode() throws Exception {
-    setResponseExpectations(108, "id=4815162342");
+    String json = replaceQuotes("\n"
+            + "{"
+            + "  'multicast_id': 108,"
+            + "  'success': 1,"
+            + "  'failure': 0,"
+            + "  'canonical_ids': 0,"
+            + "  'results': ["
+            + "    {'message_id': '16'}, "
+            + "  ]"
+            + "}");
+    setResponseExpectations(108, json);
     try {
       sender.sendNoRetry(message, regId);
     } catch (InvalidRequestException e) {
       assertEquals(108, e.getHttpStatusCode());
-      assertEquals("id=4815162342", e.getDescription());
+      assertEquals(json, e.getDescription());
     }
   }
 
@@ -637,63 +676,6 @@ public class SenderTest {
   }
 
   @Test
-  public void testNewKeyValues() {
-    Map<String, String> x = Sender.newKeyValues("key", "value");
-    assertEquals(1, x.size());
-    assertEquals("value", x.get("key"));
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testNewKeyValues_nullKey() {
-    Sender.newKeyValues(null, "value");
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testNewKeyValues_nullValue() {
-    Sender.newKeyValues("key", null);
-  }
-
-  @Test
-  public void testNewBody() {
-    StringBuilder body = Sender.newBody("name", "value");
-    assertEquals("name=value", body.toString());
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testNewBody_nullKey() {
-    Sender.newBody(null, "value");
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testNewBody_nullValue() {
-    Sender.newBody("key", null);
-  }
-
-  @Test
-  public void testAddParameter() {
-    StringBuilder body = new StringBuilder("P=NP");
-    Sender.addParameter(body, "name", "value");
-    assertEquals("P=NP&name=value", body.toString());
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testAddParameter_nullBody() {
-    Sender.addParameter(null, "key", "value");
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testAddParameter_nullKey() {
-    StringBuilder body = new StringBuilder();
-    Sender.addParameter(body, null, "value");
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testAddParameter_nullValue() {
-    StringBuilder body = new StringBuilder();
-    Sender.addParameter(body, "key", null);
-  }
-
-  @Test
   public void testGetString_oneLine() throws Exception {
     String expected = "108";
     InputStream stream = new ByteArrayInputStream(expected.getBytes());
@@ -722,32 +704,21 @@ public class SenderTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testPost_noUrl() throws Exception {
-    sender.post(null, "whatever");
+    sender.post(null, "whatever", "whatever");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testPost_noType() throws Exception {
+    sender.post(Constants.GCM_SEND_ENDPOINT, null, "whatever");
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testPost_noBody() throws Exception {
-    sender.post(Constants.GCM_SEND_ENDPOINT, null);
+    sender.post(Constants.GCM_SEND_ENDPOINT, "whatever", null);
   }
 
   @Test
   public void testPost() throws Exception {
-    String requestBody = "req";
-    String responseBody = "resp";
-    setResponseExpectations(200, responseBody);
-    HttpURLConnection response =
-        sender.post(Constants.GCM_SEND_ENDPOINT, requestBody);
-    assertEquals(requestBody, new String(outputStream.toByteArray()));
-    verify(mockedConn).setRequestMethod("POST");
-    verify(mockedConn).setFixedLengthStreamingMode(requestBody.length());
-    verify(mockedConn).setRequestProperty("Content-Type",
-        "application/x-www-form-urlencoded;charset=UTF-8");
-    verify(mockedConn).setRequestProperty("Authorization", "key=" + authKey);
-    assertEquals(200, response.getResponseCode());
-  }
-
-  @Test
-  public void testPost_customType() throws Exception {
     String requestBody = "req";
     String responseBody = "resp";
     setResponseExpectations(200, responseBody);
@@ -782,35 +753,6 @@ public class SenderTest {
   private void doNotSleep() {
     doThrow(new AssertionError("Thou should not sleep!")).when(sender)
         .sleep(anyInt());
-  }
-
-  private void assertRequestBody() throws Exception {
-    ArgumentCaptor<String> capturedBody = ArgumentCaptor.forClass(String.class);
-    verify(sender).post(eq(Constants.GCM_SEND_ENDPOINT), capturedBody.capture());
-    // parse body
-    String body = capturedBody.getValue();
-    Map<String, String> params = new HashMap<String, String>();
-    for (String param : body.split("&")) {
-      String[] split = param.split("=");
-      params.put(split[0], split[1]);
-    }
-    // check parameters
-    assertEquals("wrong parameters size for " + body, 9, params.size());
-    assertParameter(params, "registration_id", regId);
-    assertParameter(params, "collapse_key", collapseKey);
-    assertParameter(params, "delay_while_idle", delayWhileIdle ? "1" : "0");
-    assertParameter(params, "dry_run", dryRun ? "1" : "0");
-    assertParameter(params, "restricted_package_name", restrictedPackageName);
-    assertParameter(params, "time_to_live", "" + ttl);
-    assertParameter(params, "data.k1", "v1");
-    assertParameter(params, "data.k2", "v2");
-    assertParameter(params, "data.k3", "v3");
-  }
-
-  static void assertParameter(Map<String, String> params, String name,
-      String expectedValue) {
-    assertEquals("invalid value for request parameter parameter " + name,
-        params.get(name), expectedValue);
   }
 
 }
