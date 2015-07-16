@@ -63,7 +63,7 @@ public class NotificationTest {
             .title("Hi")
             .body("Hello world!")
             .sound("notDefault")
-            .badge("3")
+            .badge(3)
             .tag("tagged")
             .color("#ffffff")
             .clickAction("OPEN_ACTIVITY_1")
@@ -76,7 +76,7 @@ public class NotificationTest {
     assertEquals("Hello world!", notification.getBody());
     assertEquals("ico", notification.getIcon());
     assertEquals("notDefault", notification.getSound());
-    assertEquals("3", notification.getBadge());
+    assertTrue(notification.getBadge() == 3);
     assertEquals("tagged", notification.getTag());
     assertEquals("#ffffff", notification.getColor());
     assertEquals("OPEN_ACTIVITY_1", notification.getClickAction());

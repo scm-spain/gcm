@@ -44,7 +44,7 @@ public final class Notification implements Serializable {
   private final String body;
   private final String icon;
   private final String sound;
-  private final String badge;
+  private final Integer badge;
   private final String tag;
   private final String color;
   private final String clickAction;
@@ -62,7 +62,7 @@ public final class Notification implements Serializable {
     private String title;
     private String body;
     private String sound;
-    private String badge;
+    private Integer badge;
     private String tag;
     private String color;
     private String clickAction;
@@ -103,7 +103,7 @@ public final class Notification implements Serializable {
     /**
      * Sets the badge property.
      */
-    public Builder badge(String value) {
+    public Builder badge(int value) {
       badge = value;
       return this;
     }
@@ -216,7 +216,7 @@ public final class Notification implements Serializable {
   /**
    * Gets the badge.
    */
-  public String getBadge() {
+  public Integer getBadge() {
     return badge;
   }
 

@@ -296,7 +296,9 @@ public class Sender {
     if (message.getNotification() != null) {
       Notification notification = message.getNotification();
       Map<Object, Object> nMap = new HashMap<Object, Object>();
-      setJsonField(nMap, JSON_NOTIFICATION_BADGE, notification.getBadge());
+      if (notification.getBadge() != null) {
+        setJsonField(nMap, JSON_NOTIFICATION_BADGE, notification.getBadge().toString());
+      }
       setJsonField(nMap, JSON_NOTIFICATION_BODY, notification.getBody());
       setJsonField(nMap, JSON_NOTIFICATION_BODY_LOC_ARGS, notification.getBodyLocArgs());
       setJsonField(nMap, JSON_NOTIFICATION_BODY_LOC_KEY, notification.getBodyLocKey());
